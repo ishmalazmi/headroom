@@ -5,14 +5,14 @@
 //
 // A machine can hold several Claude logins: each lives in its own config
 // folder (~/.claude by default, others via CLAUDE_CONFIG_DIR, for example
-// ~/.claude-work). Headroom lists them and tracks the one the user picks.
+// ~/.claude-work). Each login is tracked as an agent of its own.
 const crypto = require('crypto');
 const os = require('os');
 const { execFile } = require('child_process');
 const u = require('./util');
 const { path, HOME, HOUR, DAY } = u;
 
-const transcriptCache = new Map();
+const transcriptCache = new Map(); // shared by all logins; keyed by file path
 const liveCache = new Map(); // login id -> { at, data, error, plan }
 let loginCache = { at: 0, list: null };
 const NO_CLI = () => !!process.env.HEADROOM_NO_CLI; // tests never run the real claude command
@@ -121,9 +121,9 @@ async function logins(now = Date.now()) {
   return list;
 }
 
-async function pickLogin(settings, now) {
+async function defaultLogin(now) {
   const list = await logins(now);
-  return list.find((l) => l.id === settings.claudeLogin) || list.find((l) => l.isDefault) || list[0];
+  return list.find((l) => l.isDefault) || list[0];
 }
 
 // ---------- detection ----------
@@ -139,6 +139,8 @@ async function detect() {
     lastActive: projects ? await u.mtime(projects) : null,
   };
 }
+
+const lastActive = (login) => u.mtime(path.join(login.dir, 'projects'));
 
 // ---------- tokens from transcripts ----------
 
@@ -226,11 +228,13 @@ function liveWindow(id, label, lengthMs, w) {
 
 // ---------- read ----------
 
-async function read({ settings, now }) {
-  const login = await pickLogin(settings, now);
+async function read({ settings, now, login }) {
+  if (!login) login = await defaultLogin(now);
   const since = now - 7 * DAY;
   const files = await u.walk(path.join(login.dir, 'projects'), { since, depth: 4 });
-  u.pruneCache(transcriptCache, files);
+  // Drop cached files of this login that are no longer recent, leaving other logins' entries alone.
+  const keep = new Set(files.map((f) => f.file));
+  for (const k of transcriptCache.keys()) if (k.startsWith(login.dir + path.sep) && !keep.has(k)) transcriptCache.delete(k);
 
   const seen = new Map();
   for (const f of files) {
@@ -263,8 +267,6 @@ async function read({ settings, now }) {
   if (blockActive) stats.unshift({ value: blockTok, label: 'tokens this session' });
 
   const out = { windows: [], stats, plan: login.plan || null, note: null, action: null, lock: null };
-  // Say which login this is only when there is more than one to confuse it with.
-  if ((await logins(now)).length > 1) out.login = login.email || login.name;
 
   if (settings.claudeLive) {
     const l = await fetchLive(now, login);
@@ -300,5 +302,5 @@ function resetLive(all) {
 
 module.exports = {
   id: 'claude', name: 'Claude Code', mark: 'Cl',
-  detect, read, resetLive, logins, keychainName, loginName,
+  detect, read, resetLive, logins, lastActive, keychainName, loginName,
 };

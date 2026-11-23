@@ -64,16 +64,25 @@ test('gives each login a short name from its folder', () => {
   assert.equal(claude.loginName('/Users/a/.config/claude_client', false), 'client');
 });
 
-test('finds every Claude login folder and tracks the chosen one', async () => {
-  const { home, write } = require('./helpers');
-  const path = require('node:path');
+test('finds every Claude login folder and reads each one separately', async () => {
+  const { write } = require('./helpers');
+  const { collect } = require('../src/main/providers');
   jsonl('.claude-work/projects/-job/s.jsonl', [turn(NOW - HOUR, 'w1', { input_tokens: 40, output_tokens: 2 })]);
   write('.claude-notes/readme.txt', 'not a Claude config folder');
   claude.resetLive(true);
+
   const list = await claude.logins(NOW);
   assert.deepEqual(list.map((l) => l.name), ['Default', 'work']);
-  const work = path.join(home, '.claude-work');
-  const u = await claude.read({ settings: { claudeLive: false, claudeLogin: work }, now: NOW });
-  assert.equal(stat(u, 'tokens today'), 42);
-  assert.equal(u.login, 'work');
+
+  const work = await claude.read({ settings: { claudeLive: false }, now: NOW, login: list[1] });
+  assert.equal(stat(work, 'tokens today'), 42);
+  const def = await claude.read({ settings: { claudeLive: false }, now: NOW, login: list[0] });
+  assert.equal(stat(def, 'tokens today'), 160);
+
+  // Each login becomes an agent of its own that can be tracked independently.
+  const agents = await collect({ tracked: ['claude:work'], display: 'used', claudeLive: false }, NOW);
+  const claudes = agents.filter((a) => a.icon === 'claude');
+  assert.deepEqual(claudes.map((a) => [a.id, a.sub, a.tracked]), [['claude', 'Default', false], ['claude:work', 'work', true]]);
+  assert.equal(claudes[0].usage, null);
+  assert.equal(claudes[1].headline.text, '42');
 });

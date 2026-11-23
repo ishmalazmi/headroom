@@ -16,10 +16,7 @@
   const agents = [
     {
       id: 'claude', name: 'Claude Code', mark: 'Cl', detected: true, tracked: true, evidence: 'claude command, ~/.claude', lastActive: now,
-      logins: [
-        { id: '~/.claude', name: 'Default', path: '~/.claude', email: 'alex@example.com', plan: 'Max', loggedIn: true },
-        { id: '~/.claude-work', name: 'work', path: '~/.claude-work', email: 'team@example.org', plan: 'Team', loggedIn: true },
-      ],
+      sub: 'alex@example.com', signedIn: true,
       usage: {
         plan: 'Max', lock: null, action: null, note: null,
         windows: [
@@ -29,6 +26,19 @@
         stats: [{ value: 1840000, label: 'tokens today' }, { value: 11650000, label: 'tokens in 7 days' }],
       },
       headline: { text: '78%', pct: 78, level: 'warn', sub: 'resets in 1h 54m', windowId: 'session' },
+    },
+    {
+      id: 'claude:work', icon: 'claude', name: 'Claude Code', sub: 'team@example.org', signedIn: true, mark: 'Cl',
+      detected: true, tracked: true, evidence: '~/.claude-work', lastActive: now - 3 * H,
+      usage: {
+        plan: 'Team', lock: null, action: null, note: null,
+        windows: [
+          { id: 'session', label: '5-hour window', lengthMs: 5 * H, usedPct: 9, resetsAt: now + 4.2 * H, exact: true },
+          { id: 'week', label: 'weekly limit', lengthMs: 7 * D, usedPct: 34, resetsAt: now + 2.1 * D, exact: true },
+        ],
+        stats: [{ value: 96000, label: 'tokens today' }, { value: 2300000, label: 'tokens in 7 days' }],
+      },
+      headline: { text: '34%', pct: 34, level: 'calm', sub: 'resets in 2d 2h', windowId: 'week' },
     },
     {
       id: 'codex', name: 'Codex', mark: 'Cx', detected: true, tracked: true, evidence: 'codex command, ~/.codex', lastActive: now - H,
@@ -72,10 +82,10 @@
     machine: platform === 'darwin' ? 'Mac' : platform === 'win32' ? 'PC' : 'computer',
     settings: {
       onboarded: q.get('view') !== 'onboarding',
-      tracked: ['claude', 'codex', 'gemini', 'antigravity'],
+      tracked: ['claude', 'claude:work', 'codex', 'gemini', 'antigravity'],
       pinned: q.get('pin') || 'claude',
-      known: ['claude', 'codex', 'gemini', 'antigravity'],
-      display: 'used', alerts: true, launchAtLogin: false, claudeLive: true, claudeLogin: null,
+      known: ['claude', 'claude:work', 'codex', 'gemini', 'antigravity'],
+      display: 'used', alerts: true, launchAtLogin: false, claudeLive: true,
     },
     agents,
     updatedAt: now - 20000,
