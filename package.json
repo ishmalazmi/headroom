@@ -31,25 +31,50 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
+      "identity": "-",
       "extendInfo": {
         "LSUIElement": true
-      }
+      },
+      "hardenedRuntime": false
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "category": "Development"
-    }
+      "category": "Development",
+      "maintainer": "Headroom contributors <ishmalazmi@users.noreply.github.com>",
+      "synopsis": "Usage of your coding agents, in the tray"
+    },
+    "artifactName": "Headroom-${version}-${os}-${arch}.${ext}"
   },
   "author": "Headroom contributors",
   "keywords": [

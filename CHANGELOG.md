@@ -4,6 +4,8 @@ Notable changes to Headroom. Format based on [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+## 0.1.0 - 2026-11-24
+
 ### Added
 
 - Tray app for macOS, Windows and Linux with one pinned agent shown in the bar.

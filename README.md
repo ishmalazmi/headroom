@@ -54,7 +54,26 @@ Screenshots use sample data (`HEADROOM_DEMO=1 npm start`).
 
 ## Install
 
-There are no published builds yet. Run it from source with Node 22 or newer:
+Download the installer for your system from the [latest release](https://github.com/ishmalazmi/headroom/releases/latest):
+
+| Platform | File |
+| --- | --- |
+| macOS, Apple silicon | `Headroom-*-mac-arm64.dmg` |
+| macOS, Intel | `Headroom-*-mac-x64.dmg` |
+| Windows | `Headroom-*-win-x64.exe` |
+| Linux | `Headroom-*-linux-x86_64.AppImage` or `Headroom-*-linux-amd64.deb` |
+
+The builds are not signed by a registered developer, so your system will warn you the first time:
+
+- **macOS:** open the app once, then go to System Settings → Privacy & Security and choose **Open Anyway**.
+- **Windows:** on the SmartScreen prompt choose **More info**, then **Run anyway**.
+- **Linux (AppImage):** make the file executable (`chmod +x`), then run it.
+
+On first launch Headroom lists the agents it found and asks which to track. After that it lives in the bar.
+
+### Run from source
+
+With Node 22 or newer:
 
 ```bash
 git clone https://github.com/ishmalazmi/headroom.git
@@ -63,13 +82,7 @@ npm install
 npm start
 ```
 
-To build an installer for the platform you are on (`.dmg`, `.exe`, or `.AppImage` and `.deb`):
-
-```bash
-npm run dist
-```
-
-Builds are unsigned, so macOS Gatekeeper and Windows SmartScreen will warn the first time you open one.
+`npm run dist` builds an installer for the platform you are on.
 
 ## What each agent can show
 
