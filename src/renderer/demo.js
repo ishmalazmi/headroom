@@ -16,6 +16,10 @@
   const agents = [
     {
       id: 'claude', name: 'Claude Code', mark: 'Cl', detected: true, tracked: true, evidence: 'claude command, ~/.claude', lastActive: now,
+      logins: [
+        { id: '~/.claude', name: 'Default', path: '~/.claude', email: 'alex@example.com', plan: 'Max', loggedIn: true },
+        { id: '~/.claude-work', name: 'work', path: '~/.claude-work', email: 'team@example.org', plan: 'Team', loggedIn: true },
+      ],
       usage: {
         plan: 'Max', lock: null, action: null, note: null,
         windows: [
@@ -71,7 +75,7 @@
       tracked: ['claude', 'codex', 'gemini', 'antigravity'],
       pinned: q.get('pin') || 'claude',
       known: ['claude', 'codex', 'gemini', 'antigravity'],
-      display: 'used', alerts: true, launchAtLogin: false, claudeLive: true,
+      display: 'used', alerts: true, launchAtLogin: false, claudeLive: true, claudeLogin: null,
     },
     agents,
     updatedAt: now - 20000,

@@ -51,3 +51,29 @@ test('no session window once five hours have passed', async () => {
   assert.equal(u.windows.length, 0);
   assert.equal(stat(u, 'tokens this session'), undefined);
 });
+
+test('names the Keychain item for each login the way Claude Code does', () => {
+  assert.equal(claude.keychainName('/Users/a/.claude', true), 'Claude Code-credentials');
+  assert.match(claude.keychainName('/Users/a/.claude-work', false), /^Claude Code-credentials-[0-9a-f]{8}$/);
+  assert.notEqual(claude.keychainName('/Users/a/.claude-work', false), claude.keychainName('/Users/a/.claude-play', false));
+});
+
+test('gives each login a short name from its folder', () => {
+  assert.equal(claude.loginName('/Users/a/.claude', true), 'Default');
+  assert.equal(claude.loginName('/Users/a/.claude-work', false), 'work');
+  assert.equal(claude.loginName('/Users/a/.config/claude_client', false), 'client');
+});
+
+test('finds every Claude login folder and tracks the chosen one', async () => {
+  const { home, write } = require('./helpers');
+  const path = require('node:path');
+  jsonl('.claude-work/projects/-job/s.jsonl', [turn(NOW - HOUR, 'w1', { input_tokens: 40, output_tokens: 2 })]);
+  write('.claude-notes/readme.txt', 'not a Claude config folder');
+  claude.resetLive(true);
+  const list = await claude.logins(NOW);
+  assert.deepEqual(list.map((l) => l.name), ['Default', 'work']);
+  const work = path.join(home, '.claude-work');
+  const u = await claude.read({ settings: { claudeLive: false, claudeLogin: work }, now: NOW });
+  assert.equal(stat(u, 'tokens today'), 42);
+  assert.equal(u.login, 'work');
+});

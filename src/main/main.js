@@ -28,6 +28,7 @@ const DEFAULTS = {
   alerts: true,
   launchAtLogin: false,
   claudeLive: false,
+  claudeLogin: null, // config folder of the Claude login to track; null means the default one
 };
 
 let settings = { ...DEFAULTS };
@@ -236,20 +237,21 @@ function createTray() {
 
 function wireIpc() {
   ipcMain.handle('state', () => publicState());
-  ipcMain.handle('refresh', async () => { providers.resetLive(); await refresh(); return publicState(); });
+  ipcMain.handle('refresh', async () => { providers.resetLive(true); await refresh(); return publicState(); });
   ipcMain.handle('settings', async (_e, patch) => {
-    const allowed = ['tracked', 'pinned', 'known', 'display', 'alerts', 'launchAtLogin', 'claudeLive'];
+    const allowed = ['tracked', 'pinned', 'known', 'display', 'alerts', 'launchAtLogin', 'claudeLive', 'claudeLogin'];
     for (const k of allowed) if (k in patch) settings[k] = patch[k];
     if (settings.pinned && !settings.tracked.includes(settings.pinned)) settings.pinned = settings.tracked[0] || null;
     saveSettings();
     if ('launchAtLogin' in patch) applyLaunchAtLogin();
-    if ('claudeLive' in patch) providers.resetLive();
+    if ('claudeLive' in patch || 'claudeLogin' in patch) providers.resetLive();
     push();
     updateTray();
     await refresh();
     return publicState();
   });
-  ipcMain.handle('onboard', async (_e, { tracked, pinned, claudeLive }) => {
+  ipcMain.handle('onboard', async (_e, { tracked, pinned, claudeLive, claudeLogin }) => {
+    settings.claudeLogin = claudeLogin || null;
     settings.tracked = tracked;
     settings.pinned = tracked.includes(pinned) ? pinned : tracked[0] || null;
     settings.claudeLive = !!claudeLive;

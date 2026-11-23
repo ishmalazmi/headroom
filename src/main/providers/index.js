@@ -42,6 +42,12 @@ async function collect(settings, now = Date.now()) {
         agent.usage = { windows: [], stats: [], plan: null, note: null, action: null, lock: null, empty: `Couldn't read usage: ${e.message}` };
       }
     }
+    // Claude can have several logins; the popover lets the user choose one.
+    if (p.logins && agent.detected) {
+      try {
+        agent.logins = (await p.logins(now)).map(({ id, name, path, email, plan, loggedIn }) => ({ id, name, path, email, plan, loggedIn }));
+      } catch { agent.logins = []; }
+    }
     agent.headline = headline(agent.usage, settings, now);
     return agent;
   }));

@@ -31,6 +31,7 @@ Claude Code, Codex, Gemini CLI and the rest each have their own limits, their ow
 - **One number in the bar.** Pin one agent and its usage stays visible. Close to the limit, the number turns into the time until it resets.
 - **Every agent in one dropdown.** Claude Code, Codex, Gemini CLI, Antigravity, Kimi and DeepSeek. Click a row for detail, or its pin to move it to the bar.
 - **Finds your agents by itself.** On first launch it lists what is installed and asks which to track. Agents you install later are offered in the dropdown.
+- **More than one Claude login.** If you keep separate Claude logins (for example `~/.claude` and `~/.claude-work`), Headroom lists them with the account each belongs to and asks which one to track.
 - **Pace, not just percent.** On each bar the fill is usage and the tick is time elapsed, so you can see whether you will run out before the window resets.
 - **Quiet.** Monochrome until 75%, amber after that, red from 90%. One silent notification at 90%. Nothing else.
 - **Local.** No account, no telemetry. See [Privacy](#privacy).
@@ -89,7 +90,7 @@ npm start
 | Agent | Read from | What you get |
 | --- | --- | --- |
 | Codex | `~/.codex/sessions` | Exact 5-hour and weekly percentages and reset times, as of your last turn. Tokens. |
-| Claude Code | `~/.claude/projects` | Tokens and the session reset time. Percentages need **Read limits from Anthropic** (see [Privacy](#privacy)). |
+| Claude Code | `~/.claude/projects` (or the login you choose) | Tokens and the session reset time. Percentages need **Read limits from Anthropic** (see [Privacy](#privacy)). |
 | Gemini CLI | `~/.gemini/tmp/*/chats` | Requests and tokens today, and the daily reset time. No percentage, because the allowance depends on the account. |
 | Antigravity | `~/.gemini/antigravity-cli` | Conversations touched, and quota lockouts found in its logs. It keeps no usage meter on disk. |
 | Kimi, DeepSeek | their config folders | Token counts picked out of local session logs. Estimates. |
@@ -103,6 +104,8 @@ The Gemini CLI, Kimi and DeepSeek readers were written from the file formats tho
 Headroom reads local files and sends nothing anywhere, with one opt-in exception.
 
 Claude Code does not store limit percentages on disk. If you turn on **Read limits from Anthropic**, Headroom reads the sign-in Claude Code already saved (the macOS Keychain, or `~/.claude/.credentials.json`) and asks Anthropic's usage endpoint for your percentages every five minutes. The token is used for that one request and is never stored or logged by Headroom. That endpoint is not publicly documented and may change.
+
+To show which account each Claude login belongs to, and to keep a saved sign-in from going stale, Headroom runs Claude Code's own `claude auth status` command. Claude Code renews its sign-in itself; Headroom never writes credentials. The desktop app's sign-in cannot be read by other apps, so percentages need the `claude` command to be signed in for the login you track.
 
 Headroom never writes to another tool's files.
 

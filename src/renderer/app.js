@@ -109,7 +109,7 @@
       <div class="hero-head">
         ${mark(a)}
         <h1>${esc(a.name)}</h1>
-        ${u && u.plan ? `<span class="plan">${esc(u.plan)}</span>` : ''}
+        ${u && (u.plan || u.login) ? `<span class="plan" title="${esc(u.login || '')}">${esc([u.plan, u.login].filter(Boolean).join(', '))}</span>` : ''}
         <span class="where" title="This agent is shown in the ${S.barName}">${ICON.pin} In ${S.barName}</span>
       </div>
       ${figure}${under}
@@ -168,6 +168,19 @@
     return `<label class="switch"><input type="checkbox" data-act="${act}" ${extra} ${checked ? 'checked' : ''} aria-label="${esc(label)}"><span></span></label>`;
   }
 
+  // Shown only when this machine has more than one Claude login.
+  function loginChooser(claude, selected, act) {
+    if (!claude || !claude.logins || claude.logins.length < 2) return '';
+    const current = selected || (claude.logins.find((l) => l.loggedIn) || claude.logins[0]).id;
+    return `<section class="group"><h2>Claude login to track</h2>
+      ${claude.logins.map((l) => `<label class="pick login">
+        <div class="pick-text"><strong>${esc(l.email || l.name)}</strong>
+          <span>${esc(l.loggedIn ? [l.plan, l.path].filter(Boolean).join(', ') : `Not signed in for the claude command, ${l.path}`)}</span></div>
+        <div class="pick-cell"><span class="radio"><input type="radio" name="${act}" data-act="${act}" data-id="${esc(l.id)}" ${l.id === current ? 'checked' : ''} aria-label="Track ${esc(l.email || l.name)}"><span></span></span></div>
+      </label>`).join('')}
+    </section>`;
+  }
+
   function settingsView() {
     const st = S.settings;
     const claude = S.agents.find((a) => a.id === 'claude' && a.detected);
@@ -190,6 +203,7 @@
         <div class="setting"><div class="setting-text">Tell me at 90%<span>One quiet notification per window. Nothing else.</span></div>${sw('alerts', st.alerts, 'Tell me at 90%')}</div>
         <div class="setting"><div class="setting-text">Open at login</div>${sw('login', st.launchAtLogin, 'Open at login')}</div>
       </section>
+      ${loginChooser(claude, st.claudeLogin, 'login')}
       ${claude ? `<section class="group"><h2>Claude Code</h2>
         <div class="setting"><div class="setting-text">Read limits from Anthropic
           <span>Claude Code keeps tokens on disk but not your limit percentages. Headroom asks Anthropic for them with the sign-in Claude Code already saved${S.platform === 'darwin' ? '; macOS may ask for Keychain access' : ''}.</span></div>
@@ -205,7 +219,9 @@
       // Suggest the first agent used this week; the list is ordered by how much each can report.
       const week = Date.now() - 7 * 864e5;
       const suggested = found.find((a) => a.lastActive && a.lastActive > week) || found[0];
-      draft = { tracked: new Set(found.map((a) => a.id)), pinned: suggested ? suggested.id : null, live: true };
+      const cl = found.find((a) => a.id === 'claude');
+      const firstLogin = cl && cl.logins && (cl.logins.find((l) => l.loggedIn) || cl.logins[0]);
+      draft = { tracked: new Set(found.map((a) => a.id)), pinned: suggested ? suggested.id : null, live: true, login: firstLogin ? firstLogin.id : null };
     }
     // Closing keeps Headroom in the bar; clicking its icon brings this screen back.
     const closeBtn = `<button class="icon-btn close" data-act="close" title="Close. Headroom stays in the ${S.barName}" aria-label="Close">${ICON.close}</button>`;
@@ -227,6 +243,7 @@
           <div class="pick-cell"><label class="radio"><input type="radio" name="ob-pin" data-act="ob-pin" data-id="${a.id}" ${draft.pinned === a.id ? 'checked' : ''} ${draft.tracked.has(a.id) ? '' : 'disabled'} aria-label="Show ${esc(a.name)} in the ${S.barName}"><span></span></label></div>
         </div>`).join('')}
       </section>
+      ${claudeOn ? loginChooser(found.find((a) => a.id === 'claude'), draft.login, 'ob-login') : ''}
       ${claudeOn ? `<section class="group"><div class="setting"><div class="setting-text">Read Claude limits from Anthropic
         <span>Uses the sign-in Claude Code already saved. Everything else stays on this ${S.machine}.${S.platform === 'darwin' ? ' macOS may ask for Keychain access.' : ''}</span></div>
         ${sw('ob-live', draft.live, 'Read Claude limits from Anthropic')}</div></section>` : ''}
@@ -267,7 +284,7 @@
       case 'skip-new': await patch({ known: [...S.settings.known, id] }); break;
       case 'start':
         t.disabled = true;
-        S = await api.completeOnboarding({ tracked: [...draft.tracked], pinned: draft.pinned, claudeLive: draft.live && draft.tracked.has('claude') });
+        S = await api.completeOnboarding({ tracked: [...draft.tracked], pinned: draft.pinned, claudeLive: draft.live && draft.tracked.has('claude'), claudeLogin: draft.login });
         draft = null; view = 'main'; render();
         break;
     }
@@ -284,6 +301,8 @@
         render(); break;
       case 'ob-pin': draft.pinned = id; render(); break;
       case 'ob-live': draft.live = t.checked; break;
+      case 'ob-login': draft.login = id; break;
+      case 'login': await patch({ claudeLogin: id }); break;
       case 'track': {
         const set = new Set(S.settings.tracked);
         if (t.checked) set.add(id); else set.delete(id);

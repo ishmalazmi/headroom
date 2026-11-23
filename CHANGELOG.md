@@ -13,4 +13,5 @@ Notable changes to Headroom. Format based on [Keep a Changelog](https://keepacha
 - Readers for Claude Code, Codex, Gemini CLI, Antigravity, Kimi and DeepSeek.
 - Pace line showing whether usage will outlast the current window.
 - Optional Claude limit percentages read from Anthropic.
+- Detection of multiple Claude logins, with a choice of which one to track.
 - One silent notification at 90% of a limit.

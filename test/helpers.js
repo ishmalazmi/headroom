@@ -9,6 +9,7 @@ process.env.HOME = home;
 process.env.USERPROFILE = home;
 delete process.env.CODEX_HOME;
 delete process.env.CLAUDE_CONFIG_DIR;
+process.env.HEADROOM_NO_CLI = '1'; // never run a real agent command from tests
 process.on('exit', () => fs.rmSync(home, { recursive: true, force: true }));
 
 const HOUR = 36e5;
