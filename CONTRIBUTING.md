@@ -62,7 +62,9 @@ These decide most design questions. Please read them before changing behaviour o
 ## Writing a change
 
 - **Keep it small.** One purpose per pull request.
-- **Add or update tests** for anything in `providers/`, `shared/` or `trayIcon.js`. Tests build fixture files in a temporary home folder; see `test/helpers.js` and any existing test for the pattern. Tests must not read the real home folder or use the network.
+- **Write the test first.** This project is developed test-first: add a failing test that describes the behaviour, watch it fail, then write the code that makes it pass. A pull request that changes behaviour without a test that would have failed before it will be asked for one. Bug fixes start with a test that reproduces the bug.
+- **Keep code testable.** Anything that reaches outside the process (network, Keychain, another program) goes through a small seam that tests can replace; see `deps` in `providers/claude.js` and `test/claude-live.test.js`.
+- **Tests cover** everything in `providers/`, `shared/` and `trayIcon.js`. Tests build fixture files in a temporary home folder; see `test/helpers.js` and any existing test for the pattern. Tests must not read the real home folder or use the network.
 - **UI changes** need a screenshot in light and dark. `npm start -- --smoke=out.png` renders the popover once, saves it and exits. `HEADROOM_DEMO=1 npm start` gives you stable sample data; extend `src/renderer/demo.js` if your change needs a new state.
 - **Match the surrounding style**: two-space indent, single quotes, semicolons. Comments explain why, not what.
 - **No new dependencies** without discussing it in an issue first. The app currently ships with none at runtime.

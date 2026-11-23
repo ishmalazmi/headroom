@@ -1,7 +1,7 @@
 {
   "name": "headroom",
   "productName": "Headroom",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "See how much room is left on every coding agent you use, from the menu bar.",
   "main": "src/main/main.js",
   "license": "MIT",

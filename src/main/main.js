@@ -97,11 +97,12 @@ function updateTray() {
   }));
   if (MAC) tray.setTitle(h && h.text !== '–' ? ' ' + h.text : '', { fontType: 'monospacedDigit' });
   let tip = 'Headroom';
+  const label = (x) => (x.sub ? `${x.name} (${x.sub})` : x.name);
   if (a && h) {
-    if (h.locked) tip = `${a.name}: limit reached, back in ${h.text}`;
-    else if (h.pct != null) tip = `${a.name}: ${h.pct}% used${h.sub ? ', ' + h.sub : ''}`;
-    else if (h.text !== '–') tip = `${a.name}: ${h.text} ${h.sub}`;
-    else tip = `${a.name}: no recent usage`;
+    if (h.locked) tip = `${label(a)}: limit reached, back in ${h.text}`;
+    else if (h.pct != null) tip = `${label(a)}: ${h.pct}% used${h.sub ? ', ' + h.sub : ''}`;
+    else if (h.text !== '–') tip = `${label(a)}: ${h.text} ${h.sub}`;
+    else tip = `${label(a)}: no recent usage`;
   }
   tray.setToolTip(tip);
 }
@@ -117,7 +118,7 @@ function checkAlerts() {
       alerted.add(key);
       const left = w.resetsAt ? ` It resets in ${F.dur(w.resetsAt - Date.now())}.` : '';
       new Notification({
-        title: `${a.name} is at ${Math.round(w.usedPct)}%`,
+        title: `${a.sub ? `${a.name} (${a.sub})` : a.name} is at ${Math.round(w.usedPct)}%`,
         body: `You have used most of your ${w.label}.${left}`,
         silent: true,
         icon: HAS_ICON && !MAC ? APP_ICON : undefined, // macOS already shows the app icon
@@ -236,7 +237,7 @@ function createTray() {
 
 function wireIpc() {
   ipcMain.handle('state', () => publicState());
-  ipcMain.handle('refresh', async () => { providers.resetLive(); await refresh(); return publicState(); });
+  ipcMain.handle('refresh', async () => { providers.resetLive(true); await refresh(); return publicState(); });
   ipcMain.handle('settings', async (_e, patch) => {
     const allowed = ['tracked', 'pinned', 'known', 'display', 'alerts', 'launchAtLogin', 'claudeLive'];
     for (const k of allowed) if (k in patch) settings[k] = patch[k];
@@ -258,6 +259,13 @@ function wireIpc() {
     saveSettings();
     await refresh();
     positionWindow();
+    return publicState();
+  });
+  // A button an agent offered, for example "Sign in" for one Claude login.
+  ipcMain.handle('act', async (_e, agentId, kind) => {
+    await providers.act(agentId, kind);
+    providers.resetLive(true);
+    await refresh();
     return publicState();
   });
   ipcMain.on('resize', (_e, height) => {

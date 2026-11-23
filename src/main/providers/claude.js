@@ -2,29 +2,150 @@
 // Tokens come from the session transcripts on disk. Limit percentages are not
 // stored locally, so they are fetched from Anthropic (opt-in) with the sign-in
 // Claude Code already saved.
+//
+// A machine can hold several Claude logins: each lives in its own config
+// folder (~/.claude by default, others via CLAUDE_CONFIG_DIR, for example
+// ~/.claude-work). Each login is tracked as an agent of its own.
+const crypto = require('crypto');
+const os = require('os');
 const { execFile } = require('child_process');
 const u = require('./util');
 const { path, HOME, HOUR, DAY } = u;
 
-const cache = new Map();
-let live = { at: 0, data: null, error: null };
+const transcriptCache = new Map(); // shared by all logins; keyed by file path
+const liveCache = new Map(); // login id -> { at, data, error, plan }
+let loginCache = { at: 0, list: null };
+const NO_CLI = () => !!process.env.HEADROOM_NO_CLI; // tests never run the real claude command
 
-function dataDirs() {
-  const dirs = [];
-  if (process.env.CLAUDE_CONFIG_DIR) dirs.push(...process.env.CLAUDE_CONFIG_DIR.split(','));
-  dirs.push(path.join(HOME, '.claude'), path.join(HOME, '.config', 'claude'));
+// ---------- logins ----------
+
+async function defaultDir() {
+  return (await u.firstExisting([path.join(HOME, '.claude'), path.join(HOME, '.config', 'claude')]))
+    || path.join(HOME, '.claude');
+}
+
+async function looksLikeConfigDir(dir) {
+  for (const name of ['projects', '.claude.json', '.credentials.json']) {
+    if (await u.exists(path.join(dir, name))) return true;
+  }
+  return false;
+}
+
+// ".claude-work" -> "work"
+function loginName(dir, isDefault) {
+  if (isDefault) return 'Default';
+  return path.basename(dir).replace(/^\.?claude[-_.]?/i, '') || path.basename(dir);
+}
+
+// macOS Keychain item that holds a login's sign-in.
+function keychainName(dir, isDefault) {
+  if (isDefault) return 'Claude Code-credentials';
+  return 'Claude Code-credentials-' + crypto.createHash('sha256').update(dir).digest('hex').slice(0, 8);
+}
+
+async function configDirs() {
+  const def = await defaultDir();
+  const dirs = [{ dir: def, isDefault: true }];
+  const seen = new Set([def]);
+  const add = async (dir) => {
+    if (!dir || seen.has(dir)) return;
+    seen.add(dir);
+    if (await looksLikeConfigDir(dir)) dirs.push({ dir, isDefault: false });
+  };
+  for (const d of (process.env.CLAUDE_CONFIG_DIR || '').split(',')) await add(d.trim());
+  const scan = async (parent, pattern) => {
+    let entries = [];
+    try { entries = await u.fsp.readdir(parent, { withFileTypes: true }); } catch {}
+    for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (e.isDirectory() && pattern.test(e.name)) await add(path.join(parent, e.name));
+    }
+  };
+  await scan(HOME, /^\.claude[-_.].+/i);
+  await scan(path.join(HOME, '.config'), /^claude[-_.].+/i);
   return dirs;
 }
 
-async function detect() {
-  const dir = await u.firstExisting(dataDirs().map((d) => path.join(d, 'projects')));
+function run(file, args, opts) {
+  return new Promise((resolve) => {
+    execFile(file, args, { timeout: 30000, maxBuffer: 16 * 1024 * 1024, ...opts }, (_err, stdout) => resolve(stdout || ''));
+  });
+}
+
+// Ask Claude Code itself who a login belongs to. As a side effect Claude Code
+// renews that login's saved sign-in if it has expired.
+async function authStatus(login) {
+  if (NO_CLI()) return null;
   const bin = await u.findBinary(['claude']);
+  if (!bin) return null;
+  const env = { ...process.env, PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || '') };
+  delete env.CLAUDE_CONFIG_DIR;
+  if (!login.isDefault) env.CLAUDE_CONFIG_DIR = login.dir;
+  const out = await run(bin, ['auth', 'status'], { env, cwd: os.tmpdir(), shell: u.WIN });
+  try { return JSON.parse(out.slice(out.indexOf('{'))); } catch { return null; }
+}
+
+async function readCredential(login) {
+  const parse = (raw) => {
+    try { return JSON.parse(raw).claudeAiOauth || null; } catch { return null; }
+  };
+  const file = path.join(login.dir, '.credentials.json');
+  if (await u.exists(file)) return parse(await u.fsp.readFile(file, 'utf8'));
+  if (process.platform === 'darwin') {
+    const raw = await run('/usr/bin/security', ['find-generic-password', '-s', keychainName(login.dir, login.isDefault), '-w']);
+    return parse(raw.trim());
+  }
+  return null;
+}
+
+const isUsable = (oauth, now) => !!(oauth && oauth.accessToken && (!oauth.expiresAt || oauth.expiresAt > now));
+
+// Every Claude login on this machine, with who it belongs to where Claude Code can say.
+async function logins(now = Date.now()) {
+  if (loginCache.list && now - loginCache.at < 30 * 60 * 1000) return loginCache.list;
+  const list = [];
+  for (const d of await configDirs()) {
+    const login = { id: d.dir, dir: d.dir, isDefault: d.isDefault, name: loginName(d.dir, d.isDefault), path: u.tilde(d.dir) };
+    const status = await authStatus(login);
+    if (status) {
+      login.loggedIn = !!status.loggedIn;
+      login.email = status.email || null;
+      login.plan = status.subscriptionType ? status.subscriptionType[0].toUpperCase() + status.subscriptionType.slice(1) : null;
+    } else {
+      login.loggedIn = !!((await readCredential(login)) || {}).accessToken;
+      login.email = null;
+      login.plan = null;
+    }
+    list.push(login);
+  }
+  loginCache = { at: now, list };
+  return list;
+}
+
+async function defaultLogin(now) {
+  const list = await deps.logins(now);
+  return list.find((l) => l.isDefault) || list[0];
+}
+
+// Everything that reaches outside this process, in one place so tests can replace it.
+const deps = { logins, authStatus, readCredential, requestUsage: (oauth) => requestUsage(oauth), findBinary: u.findBinary, run };
+
+// ---------- detection ----------
+
+async function detect() {
+  const dirs = [];
+  for (const d of await configDirs()) if (await u.exists(d.dir)) dirs.push(d.dir);
+  const bin = await u.findBinary(['claude']);
+  const projects = dirs.length ? path.join(dirs[0], 'projects') : null;
   return {
-    detected: !!(dir || bin),
-    evidence: [bin && 'claude command', dir && u.tilde(path.dirname(dir))].filter(Boolean).join(', '),
-    lastActive: dir ? await u.mtime(dir) : null,
+    detected: !!(dirs.length || bin),
+    evidence: [bin && 'claude command', ...dirs.map(u.tilde)].filter(Boolean).join(', '),
+    lastActive: projects ? await u.mtime(projects) : null,
   };
 }
+
+const lastActive = (login) => u.mtime(path.join(login.dir, 'projects'));
+
+// ---------- tokens from transcripts ----------
 
 async function parseFile(file) {
   const entries = [];
@@ -45,43 +166,61 @@ async function parseFile(file) {
   return entries;
 }
 
-async function readCredentials() {
-  for (const d of dataDirs()) {
-    const p = path.join(d, '.credentials.json');
-    if (await u.exists(p)) return JSON.parse(await u.fsp.readFile(p, 'utf8'));
+// ---------- limits from Anthropic ----------
+
+async function requestUsage(oauth) {
+  const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
+    headers: {
+      Authorization: 'Bearer ' + oauth.accessToken,
+      'anthropic-beta': 'oauth-2025-04-20',
+      'User-Agent': 'headroom',
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) {
+    const err = new Error(res.status === 401 ? 'Anthropic rejected the saved sign-in' : 'Anthropic returned ' + res.status);
+    err.status = res.status;
+    throw err;
   }
-  if (process.platform === 'darwin') {
-    const raw = await new Promise((resolve, reject) => {
-      execFile('/usr/bin/security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
-        { timeout: 60000 }, (err, stdout) => (err ? reject(new Error('Keychain access was not granted')) : resolve(stdout)));
-    });
-    return JSON.parse(raw.trim());
-  }
-  throw new Error('Claude Code is not signed in');
+  return res.json();
 }
 
-async function fetchLive(now) {
-  if (now - live.at < 5 * 60 * 1000 && (live.data || live.error)) return live;
-  live = { at: now, data: null, error: null, plan: null };
+// The desktop app keeps its own sign-in, which other apps cannot read, so the
+// claude command has to be signed in for each login as well. These errors make
+// the popover offer a button that does it.
+function signInNeeded(message, label) {
+  return Object.assign(new Error(message), { signInLabel: label });
+}
+const notSignedIn = () => signInNeeded('Not signed in for the claude command', 'Sign in');
+const cannotRenew = () => signInNeeded('The saved sign-in has expired', 'Sign in again');
+
+async function fetchLive(now, login) {
+  const hit = liveCache.get(login.id);
+  if (hit && now - hit.at < 5 * 60 * 1000) return hit;
+  const live = { at: now, data: null, error: null };
+  liveCache.set(login.id, live);
   try {
-    const creds = await readCredentials();
-    const oauth = creds.claudeAiOauth || {};
-    if (!oauth.accessToken) throw new Error('Claude Code is signed in with an API key, which has no plan limits');
-    live.plan = oauth.subscriptionType || null;
-    if (oauth.expiresAt && oauth.expiresAt < now) throw new Error('Sign-in expired. Open Claude Code once, then refresh');
-    const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
-      headers: {
-        Authorization: 'Bearer ' + oauth.accessToken,
-        'anthropic-beta': 'oauth-2025-04-20',
-        'User-Agent': 'headroom',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (res.status === 401) throw new Error('Sign-in expired. Open Claude Code once, then refresh');
-    if (!res.ok) throw new Error('Anthropic returned ' + res.status);
-    live.data = await res.json();
+    let oauth = await deps.readCredential(login);
+    if (!isUsable(oauth, now)) {
+      // Let Claude Code renew its own sign-in; Headroom never writes credentials.
+      const status = await deps.authStatus(login);
+      if (status && !status.loggedIn) throw notSignedIn();
+      oauth = await deps.readCredential(login);
+    }
+    if (!oauth || !oauth.accessToken) throw notSignedIn();
+    if (!isUsable(oauth, now)) throw cannotRenew();
+    try {
+      live.data = await deps.requestUsage(oauth);
+    } catch (e) {
+      if (e.status !== 401) throw e;
+      await deps.authStatus(login);
+      oauth = await deps.readCredential(login);
+      if (!isUsable(oauth, now)) throw cannotRenew();
+      live.data = await deps.requestUsage(oauth);
+    }
   } catch (e) {
     live.error = e.name === 'TimeoutError' ? 'Anthropic did not answer in time' : e.message;
+    live.signInLabel = e.signInLabel || null;
   }
   return live;
 }
@@ -95,20 +234,19 @@ function liveWindow(id, label, lengthMs, w) {
   };
 }
 
-async function read({ settings, now }) {
-  const dirs = [];
-  for (const d of dataDirs()) {
-    const p = path.join(d, 'projects');
-    if (await u.exists(p)) dirs.push(p);
-  }
+// ---------- read ----------
+
+async function read({ settings, now, login }) {
+  if (!login) login = await defaultLogin(now);
   const since = now - 7 * DAY;
-  let files = [];
-  for (const d of dirs) files.push(...(await u.walk(d, { since, depth: 4 })));
-  u.pruneCache(cache, files);
+  const files = await u.walk(path.join(login.dir, 'projects'), { since, depth: 4 });
+  // Drop cached files of this login that are no longer recent, leaving other logins' entries alone.
+  const keep = new Set(files.map((f) => f.file));
+  for (const k of transcriptCache.keys()) if (k.startsWith(login.dir + path.sep) && !keep.has(k)) transcriptCache.delete(k);
 
   const seen = new Map();
   for (const f of files) {
-    for (const e of await u.cached(cache, f, parseFile)) {
+    for (const e of await u.cached(transcriptCache, f, parseFile)) {
       if (e.t < since) continue;
       const prev = seen.get(e.key);
       if (!prev || e.tok > prev.tok) seen.set(e.key, e);
@@ -136,11 +274,10 @@ async function read({ settings, now }) {
   ];
   if (blockActive) stats.unshift({ value: blockTok, label: 'tokens this session' });
 
-  const out = { windows: [], stats, plan: null, note: null, action: null, lock: null };
+  const out = { windows: [], stats, plan: login.plan || null, note: null, action: null, lock: null };
 
   if (settings.claudeLive) {
-    const l = await fetchLive(now);
-    if (l.plan) out.plan = l.plan[0].toUpperCase() + l.plan.slice(1);
+    const l = await fetchLive(now, login);
     if (l.data) {
       out.windows = [
         liveWindow('session', '5-hour window', 5 * HOUR, l.data.five_hour),
@@ -150,6 +287,7 @@ async function read({ settings, now }) {
       ].filter(Boolean);
     } else if (l.error) {
       out.note = `Couldn't read limits: ${l.error}.`;
+      if (l.signInLabel) out.action = { kind: 'sign-in', label: l.signInLabel };
     }
   } else {
     out.action = { kind: 'claude-live', label: 'Show limit percentages' };
@@ -165,6 +303,34 @@ async function read({ settings, now }) {
   return out;
 }
 
-function resetLive() { live = { at: 0, data: null, error: null }; }
+// ---------- signing in ----------
 
-module.exports = { id: 'claude', name: 'Claude Code', mark: 'Cl', detect, read, resetLive };
+// Claude Code's own sign-in, pointed at one login. It opens the browser.
+function signInCommand(login, bin, baseEnv = process.env) {
+  const env = { ...baseEnv, PATH: path.dirname(bin) + path.delimiter + (baseEnv.PATH || '') };
+  delete env.CLAUDE_CONFIG_DIR;
+  if (!login.isDefault) env.CLAUDE_CONFIG_DIR = login.dir;
+  return { file: bin, args: ['auth', 'login'], env };
+}
+
+async function signIn(login) {
+  const bin = await deps.findBinary(['claude']);
+  if (!bin) return false;
+  const cmd = signInCommand(login, bin);
+  await deps.run(cmd.file, cmd.args, { env: cmd.env, cwd: os.tmpdir(), shell: u.WIN, timeout: 5 * 60 * 1000 });
+  resetLive(true);
+  return true;
+}
+
+const listLogins = (now) => deps.logins(now);
+
+// Forget cached limits (and, when asked, who the logins belong to).
+function resetLive(all) {
+  liveCache.clear();
+  if (all) loginCache = { at: 0, list: null };
+}
+
+module.exports = {
+  id: 'claude', name: 'Claude Code', mark: 'Cl',
+  detect, read, resetLive, logins: listLogins, lastActive, keychainName, loginName, deps, signIn, signInCommand,
+};

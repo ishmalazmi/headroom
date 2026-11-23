@@ -6,6 +6,7 @@
   let S = null;          // state from the main process
   let view = window.__demoView || 'main';     // 'main' | 'settings'
   let expanded = window.__demoOpen || null;   // id of the row opened for detail
+  let pending = null;    // 'agentId:kind' of a button that is still working
   let busy = false;      // a refresh is running
   let draft = null;      // first-run choices: { tracked:Set, pinned, live }
 
@@ -18,9 +19,14 @@
   };
 
   // Brand marks live in ./icons; an agent without one falls back to its initials.
+  const isClaude = (id) => id === 'claude' || id.startsWith('claude:');
+  const anyClaude = (ids) => [...ids].some(isClaude);
+  // "Claude Code" plus the login it belongs to, when there are several.
+  const title = (a) => (a.sub ? `${esc(a.name)} <span class="muted">${esc(a.sub)}</span>` : esc(a.name));
+  const plain = (a) => (a.sub ? `${a.name} (${a.sub})` : a.name);
   const BRANDED = new Set(['claude', 'codex', 'gemini', 'antigravity', 'kimi', 'deepseek']);
-  const mark = (a) => (BRANDED.has(a.id)
-    ? `<img class="mark" src="icons/${a.id}.svg" alt="" width="24" height="24">`
+  const mark = (a) => (BRANDED.has(a.icon || a.id)
+    ? `<img class="mark" src="icons/${a.icon || a.id}.svg" alt="" width="24" height="24">`
     : `<span class="mark" aria-hidden="true">${esc(a.mark)}</span>`);
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -74,7 +80,13 @@
     if (stats.length) html += `<dl class="stats">${stats.map((s) => `<dt>${F.num(s.value)}</dt><dd>${esc(s.label)}</dd>`).join('')}</dl>`;
     if (u.empty) html += `<p class="note">${esc(u.empty)}</p>`;
     if (u.note) html += `<p class="note">${esc(u.note)}${u.asOf ? ' Last turn ' + F.ago(now - u.asOf) + '.' : ''}</p>`;
-    if (u.action) html += `<button class="link" data-act="action" data-kind="${esc(u.action.kind)}">${esc(u.action.label)}</button>`;
+    if (u.action) {
+      const waiting = pending === a.id + ':' + u.action.kind;
+      html += u.action.kind === 'sign-in'
+        ? `<div class="act"><button class="btn" data-act="action" data-id="${esc(a.id)}" data-kind="sign-in" ${waiting ? 'disabled' : ''}>${waiting ? 'Waiting for your browser…' : esc(u.action.label)}</button>
+            ${waiting ? '<span class="muted">Finish signing in there. This updates by itself.</span>' : ''}</div>`
+        : `<button class="link" data-act="action" data-id="${esc(a.id)}" data-kind="${esc(u.action.kind)}">${esc(u.action.label)}</button>`;
+    }
     return html;
   }
 
@@ -109,7 +121,7 @@
       <div class="hero-head">
         ${mark(a)}
         <h1>${esc(a.name)}</h1>
-        ${u && u.plan ? `<span class="plan">${esc(u.plan)}</span>` : ''}
+        ${(u && u.plan) || a.sub ? `<span class="plan" title="${esc(a.sub || '')}">${esc([u && u.plan, a.sub].filter(Boolean).join(', '))}</span>` : ''}
         <span class="where" title="This agent is shown in the ${S.barName}">${ICON.pin} In ${S.barName}</span>
       </div>
       ${figure}${under}
@@ -132,10 +144,10 @@
       <div class="row">
         <button class="row-main" data-act="expand" data-id="${a.id}" aria-expanded="${open}">
           ${mark(a)}
-          <span class="row-name">${esc(a.name)}</span>
+          <span class="row-name">${title(a)}</span>
           ${value}
         </button>
-        <button class="icon-btn" data-act="pin" data-id="${a.id}" title="Show ${esc(a.name)} in the ${S.barName}" aria-label="Show ${esc(a.name)} in the ${S.barName}">${ICON.pin}</button>
+        <button class="icon-btn" data-act="pin" data-id="${a.id}" title="Show ${esc(plain(a))} in the ${S.barName}" aria-label="Show ${esc(plain(a))} in the ${S.barName}">${ICON.pin}</button>
       </div>
       ${open ? `<div class="row-detail">${detail(a, now, null, null)}</div>` : ''}
     </li>`;
@@ -154,7 +166,7 @@
 
     return `${hero(pinned, now)}
       ${others.length ? `<ul class="others">${others.map((a) => row(a, now)).join('')}</ul>` : ''}
-      ${fresh.map((a) => `<div class="banner"><p><strong>${esc(a.name)}</strong> is now on this ${S.machine}.</p>
+      ${fresh.map((a) => `<div class="banner"><p><strong>${esc(plain(a))}</strong> is now on this ${S.machine}.</p>
         <button class="btn quiet" data-act="skip-new" data-id="${a.id}">Not now</button>
         <button class="btn" data-act="track-new" data-id="${a.id}">Track it</button></div>`).join('')}
       <footer class="foot">
@@ -170,15 +182,15 @@
 
   function settingsView() {
     const st = S.settings;
-    const claude = S.agents.find((a) => a.id === 'claude' && a.detected);
+    const claude = S.agents.find((a) => isClaude(a.id) && a.detected);
     return `<header class="page-head">
         <button class="icon-btn" data-act="back" title="Back" aria-label="Back">${ICON.back}</button><h1>Settings</h1>
       </header>
       <section class="group"><h2>Agents to track</h2>
         ${S.agents.map((a) => `<div class="pick">
           ${mark(a)}
-          <div class="pick-text"><strong>${esc(a.name)}</strong><span>${a.detected ? esc(a.evidence || 'Installed') : `Not found on this ${S.machine}`}</span></div>
-          ${sw('track', a.tracked && a.detected, 'Track ' + a.name, `data-id="${a.id}" ${a.detected ? '' : 'disabled'}`)}
+          <div class="pick-text"><strong>${title(a)}</strong><span>${a.detected ? esc(a.evidence || 'Installed') : `Not found on this ${S.machine}`}</span></div>
+          ${sw('track', a.tracked && a.detected, 'Track ' + plain(a), `data-id="${a.id}" ${a.detected ? '' : 'disabled'}`)}
         </div>`).join('')}
       </section>
       <section class="group"><h2>In the ${S.barName}</h2>
@@ -215,16 +227,16 @@
         <div class="actions"><button class="btn wide" data-act="refresh">Check again</button></div>
         <div class="actions"><button class="btn quiet" data-act="quit">Quit Headroom</button></div>`;
     }
-    const claudeOn = draft.tracked.has('claude');
+    const claudeOn = anyClaude(draft.tracked);
     return `${closeBtn}<div class="intro"><h1>Found ${found.length} ${found.length === 1 ? 'agent' : 'agents'} on this ${S.machine}</h1>
         <p>Choose which to track, and the one whose usage stays in your ${S.barName}.</p></div>
       <div class="cols"><span>Track</span><span>${cap(S.barName)}</span></div>
       <section class="group" style="padding-top:0">
         ${found.map((a) => `<div class="pick">
           ${mark(a)}
-          <div class="pick-text"><strong>${esc(a.name)}</strong><span title="${esc(a.evidence)}">${a.lastActive ? 'Last used ' + F.ago(Date.now() - a.lastActive) : 'Installed, not used yet'}</span></div>
-          <div class="pick-cell">${sw('ob-track', draft.tracked.has(a.id), 'Track ' + a.name, `data-id="${a.id}"`)}</div>
-          <div class="pick-cell"><label class="radio"><input type="radio" name="ob-pin" data-act="ob-pin" data-id="${a.id}" ${draft.pinned === a.id ? 'checked' : ''} ${draft.tracked.has(a.id) ? '' : 'disabled'} aria-label="Show ${esc(a.name)} in the ${S.barName}"><span></span></label></div>
+          <div class="pick-text"><strong>${title(a)}</strong><span title="${esc(a.evidence)}">${a.lastActive ? 'Last used ' + F.ago(Date.now() - a.lastActive) : 'Not used yet'}${a.signedIn === false ? ', tokens only until the claude command is signed in' : ''}</span></div>
+          <div class="pick-cell">${sw('ob-track', draft.tracked.has(a.id), 'Track ' + plain(a), `data-id="${a.id}"`)}</div>
+          <div class="pick-cell"><label class="radio"><input type="radio" name="ob-pin" data-act="ob-pin" data-id="${a.id}" ${draft.pinned === a.id ? 'checked' : ''} ${draft.tracked.has(a.id) ? '' : 'disabled'} aria-label="Show ${esc(plain(a))} in the ${S.barName}"><span></span></label></div>
         </div>`).join('')}
       </section>
       ${claudeOn ? `<section class="group"><div class="setting"><div class="setting-text">Read Claude limits from Anthropic
@@ -262,12 +274,16 @@
       case 'back': view = 'main'; render(); break;
       case 'quit': api.quit(); break;
       case 'close': api.hide(); break;
-      case 'action': if (t.dataset.kind === 'claude-live') await patch({ claudeLive: true }); break;
+      case 'action':
+        if (t.dataset.kind === 'claude-live') { await patch({ claudeLive: true }); break; }
+        pending = id + ':' + t.dataset.kind; render();
+        try { S = await api.act(id, t.dataset.kind); } finally { pending = null; render(); }
+        break;
       case 'track-new': await patch({ tracked: [...S.settings.tracked, id], known: [...S.settings.known, id] }); break;
       case 'skip-new': await patch({ known: [...S.settings.known, id] }); break;
       case 'start':
         t.disabled = true;
-        S = await api.completeOnboarding({ tracked: [...draft.tracked], pinned: draft.pinned, claudeLive: draft.live && draft.tracked.has('claude') });
+        S = await api.completeOnboarding({ tracked: [...draft.tracked], pinned: draft.pinned, claudeLive: draft.live && anyClaude(draft.tracked) });
         draft = null; view = 'main'; render();
         break;
     }
@@ -284,6 +300,7 @@
         render(); break;
       case 'ob-pin': draft.pinned = id; render(); break;
       case 'ob-live': draft.live = t.checked; break;
+
       case 'track': {
         const set = new Set(S.settings.tracked);
         if (t.checked) set.add(id); else set.delete(id);

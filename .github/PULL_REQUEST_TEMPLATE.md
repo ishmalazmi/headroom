@@ -9,7 +9,7 @@
 ## Checklist
 
 - [ ] `npm test` and `npm run check` pass
-- [ ] Tests added or updated for provider, shared or tray-icon changes
+- [ ] Tests were written first and failed before the change (say which, under "How it was tested")
 - [ ] Screenshots in light and dark for UI changes
 - [ ] No real logs, tokens or account details in fixtures or screenshots
 - [ ] README or docs updated if behaviour or supported agents changed

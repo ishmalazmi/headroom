@@ -51,3 +51,38 @@ test('no session window once five hours have passed', async () => {
   assert.equal(u.windows.length, 0);
   assert.equal(stat(u, 'tokens this session'), undefined);
 });
+
+test('names the Keychain item for each login the way Claude Code does', () => {
+  assert.equal(claude.keychainName('/Users/a/.claude', true), 'Claude Code-credentials');
+  assert.match(claude.keychainName('/Users/a/.claude-work', false), /^Claude Code-credentials-[0-9a-f]{8}$/);
+  assert.notEqual(claude.keychainName('/Users/a/.claude-work', false), claude.keychainName('/Users/a/.claude-play', false));
+});
+
+test('gives each login a short name from its folder', () => {
+  assert.equal(claude.loginName('/Users/a/.claude', true), 'Default');
+  assert.equal(claude.loginName('/Users/a/.claude-work', false), 'work');
+  assert.equal(claude.loginName('/Users/a/.config/claude_client', false), 'client');
+});
+
+test('finds every Claude login folder and reads each one separately', async () => {
+  const { write } = require('./helpers');
+  const { collect } = require('../src/main/providers');
+  jsonl('.claude-work/projects/-job/s.jsonl', [turn(NOW - HOUR, 'w1', { input_tokens: 40, output_tokens: 2 })]);
+  write('.claude-notes/readme.txt', 'not a Claude config folder');
+  claude.resetLive(true);
+
+  const list = await claude.logins(NOW);
+  assert.deepEqual(list.map((l) => l.name), ['Default', 'work']);
+
+  const work = await claude.read({ settings: { claudeLive: false }, now: NOW, login: list[1] });
+  assert.equal(stat(work, 'tokens today'), 42);
+  const def = await claude.read({ settings: { claudeLive: false }, now: NOW, login: list[0] });
+  assert.equal(stat(def, 'tokens today'), 160);
+
+  // Each login becomes an agent of its own that can be tracked independently.
+  const agents = await collect({ tracked: ['claude:work'], display: 'used', claudeLive: false }, NOW);
+  const claudes = agents.filter((a) => a.icon === 'claude');
+  assert.deepEqual(claudes.map((a) => [a.id, a.sub, a.tracked]), [['claude', 'Default', false], ['claude:work', 'work', true]]);
+  assert.equal(claudes[0].usage, null);
+  assert.equal(claudes[1].headline.text, '42');
+});

@@ -30,22 +30,55 @@ function headline(usage, settings, now) {
   return none;
 }
 
-async function collect(settings, now = Date.now()) {
-  const agents = await Promise.all(PROVIDERS.map(async (p) => {
-    let det;
-    try { det = await p.detect(); } catch { det = { detected: false, evidence: '', lastActive: null }; }
-    const agent = { id: p.id, name: p.name, mark: p.mark, ...det, tracked: settings.tracked.includes(p.id), usage: null };
-    if (agent.detected && agent.tracked) {
-      try {
-        agent.usage = await p.read({ settings, now });
-      } catch (e) {
-        agent.usage = { windows: [], stats: [], plan: null, note: null, action: null, lock: null, empty: `Couldn't read usage: ${e.message}` };
-      }
+async function readUsage(p, ctx) {
+  try {
+    return await p.read(ctx);
+  } catch (e) {
+    return { windows: [], stats: [], plan: null, note: null, action: null, lock: null, empty: `Couldn't read usage: ${e.message}` };
+  }
+}
+
+// A provider normally yields one agent. One with several logins (Claude Code)
+// yields an agent per login, so each can be tracked and pinned on its own.
+async function agentsFor(p, settings, now) {
+  let det;
+  try { det = await p.detect(); } catch { det = { detected: false, evidence: '', lastActive: null }; }
+  let logins = [];
+  if (p.logins && det.detected) {
+    try { logins = await p.logins(now); } catch { logins = []; }
+  }
+  const variants = logins.length > 1 ? logins : [null];
+
+  return Promise.all(variants.map(async (login) => {
+    const id = !login || login.isDefault ? p.id : `${p.id}:${login.name}`;
+    const agent = {
+      id, icon: p.id, name: p.name, mark: p.mark, ...det,
+      sub: login ? login.email || login.name : null,
+      tracked: settings.tracked.includes(id), usage: null,
+    };
+    if (login) {
+      agent.evidence = login.path;
+      agent.lastActive = await p.lastActive(login);
+      agent.signedIn = login.loggedIn;
     }
+    if (agent.detected && agent.tracked) agent.usage = await readUsage(p, { settings, now, login: login || undefined });
     agent.headline = headline(agent.usage, settings, now);
     return agent;
   }));
-  return agents;
 }
 
-module.exports = { collect, headline, resetLive: claude.resetLive };
+// Carry out a button the popover offered, such as "Sign in" for one Claude login.
+async function act(agentId, kind, now = Date.now()) {
+  const [providerId, loginName] = String(agentId).split(':');
+  const p = PROVIDERS.find((x) => x.id === providerId);
+  if (!p || kind !== 'sign-in' || !p.signIn) return false;
+  const list = await p.logins(now);
+  const login = loginName ? list.find((l) => l.name === loginName) : list.find((l) => l.isDefault) || list[0];
+  return login ? p.signIn(login) : false;
+}
+
+async function collect(settings, now = Date.now()) {
+  return (await Promise.all(PROVIDERS.map((p) => agentsFor(p, settings, now)))).flat();
+}
+
+module.exports = { collect, headline, act, resetLive: claude.resetLive };
