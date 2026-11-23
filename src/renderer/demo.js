@@ -31,7 +31,8 @@
       id: 'claude:work', icon: 'claude', name: 'Claude Code', sub: 'team@example.org', signedIn: true, mark: 'Cl',
       detected: true, tracked: true, evidence: '~/.claude-work', lastActive: now - 3 * H,
       usage: {
-        plan: 'Team', lock: null, action: null, note: null,
+        plan: 'Team', lock: null, note: q.get('signin') ? "Couldn't read limits: Not signed in for the claude command." : null,
+        action: q.get('signin') ? { kind: 'sign-in', label: 'Sign in' } : null,
         windows: [
           { id: 'session', label: '5-hour window', lengthMs: 5 * H, usedPct: 9, resetsAt: now + 4.2 * H, exact: true },
           { id: 'week', label: 'weekly limit', lengthMs: 7 * D, usedPct: 34, resetsAt: now + 2.1 * D, exact: true },
@@ -105,6 +106,7 @@
       agents.forEach((a) => { a.tracked = c.tracked.includes(a.id); });
       return state;
     },
+    act: async () => state,
     resize: () => {}, hide: () => {}, quit: () => {},
   };
 })();

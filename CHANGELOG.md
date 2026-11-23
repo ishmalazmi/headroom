@@ -14,4 +14,5 @@ Notable changes to Headroom. Format based on [Keep a Changelog](https://keepacha
 - Pace line showing whether usage will outlast the current window.
 - Optional Claude limit percentages read from Anthropic.
 - Multiple Claude logins, each tracked as its own row.
+- A Sign in button for a Claude login that is not signed in for the `claude` command.
 - One silent notification at 90% of a limit.

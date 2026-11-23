@@ -6,6 +6,7 @@
   let S = null;          // state from the main process
   let view = window.__demoView || 'main';     // 'main' | 'settings'
   let expanded = window.__demoOpen || null;   // id of the row opened for detail
+  let pending = null;    // 'agentId:kind' of a button that is still working
   let busy = false;      // a refresh is running
   let draft = null;      // first-run choices: { tracked:Set, pinned, live }
 
@@ -79,7 +80,13 @@
     if (stats.length) html += `<dl class="stats">${stats.map((s) => `<dt>${F.num(s.value)}</dt><dd>${esc(s.label)}</dd>`).join('')}</dl>`;
     if (u.empty) html += `<p class="note">${esc(u.empty)}</p>`;
     if (u.note) html += `<p class="note">${esc(u.note)}${u.asOf ? ' Last turn ' + F.ago(now - u.asOf) + '.' : ''}</p>`;
-    if (u.action) html += `<button class="link" data-act="action" data-kind="${esc(u.action.kind)}">${esc(u.action.label)}</button>`;
+    if (u.action) {
+      const waiting = pending === a.id + ':' + u.action.kind;
+      html += u.action.kind === 'sign-in'
+        ? `<div class="act"><button class="btn" data-act="action" data-id="${esc(a.id)}" data-kind="sign-in" ${waiting ? 'disabled' : ''}>${waiting ? 'Waiting for your browser…' : esc(u.action.label)}</button>
+            ${waiting ? '<span class="muted">Finish signing in there. This updates by itself.</span>' : ''}</div>`
+        : `<button class="link" data-act="action" data-id="${esc(a.id)}" data-kind="${esc(u.action.kind)}">${esc(u.action.label)}</button>`;
+    }
     return html;
   }
 
@@ -267,7 +274,11 @@
       case 'back': view = 'main'; render(); break;
       case 'quit': api.quit(); break;
       case 'close': api.hide(); break;
-      case 'action': if (t.dataset.kind === 'claude-live') await patch({ claudeLive: true }); break;
+      case 'action':
+        if (t.dataset.kind === 'claude-live') { await patch({ claudeLive: true }); break; }
+        pending = id + ':' + t.dataset.kind; render();
+        try { S = await api.act(id, t.dataset.kind); } finally { pending = null; render(); }
+        break;
       case 'track-new': await patch({ tracked: [...S.settings.tracked, id], known: [...S.settings.known, id] }); break;
       case 'skip-new': await patch({ known: [...S.settings.known, id] }); break;
       case 'start':

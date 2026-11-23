@@ -105,7 +105,7 @@ Headroom reads local files and sends nothing anywhere, with one opt-in exception
 
 Claude Code does not store limit percentages on disk. If you turn on **Read limits from Anthropic**, Headroom reads the sign-in Claude Code already saved (the macOS Keychain, or `~/.claude/.credentials.json`) and asks Anthropic's usage endpoint for your percentages every five minutes. The token is used for that one request and is never stored or logged by Headroom. That endpoint is not publicly documented and may change.
 
-To show which account each Claude login belongs to, and to keep a saved sign-in from going stale, Headroom runs Claude Code's own `claude auth status` command. Claude Code renews its sign-in itself; Headroom never writes credentials. The desktop app's sign-in cannot be read by other apps, so percentages need the `claude` command to be signed in for each login you track.
+To show which account each Claude login belongs to, and to keep a saved sign-in from going stale, Headroom runs Claude Code's own `claude auth status` command. Claude Code renews its sign-in itself; Headroom never writes credentials. The desktop app's sign-in cannot be read by other apps, so percentages need the `claude` command to be signed in for each login you track. When it is not, Headroom shows a **Sign in** button that runs Claude Code's own sign-in for that login in your browser.
 
 Headroom never writes to another tool's files.
 

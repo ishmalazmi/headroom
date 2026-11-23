@@ -127,7 +127,7 @@ async function defaultLogin(now) {
 }
 
 // Everything that reaches outside this process, in one place so tests can replace it.
-const deps = { logins, authStatus, readCredential, requestUsage: (oauth) => requestUsage(oauth) };
+const deps = { logins, authStatus, readCredential, requestUsage: (oauth) => requestUsage(oauth), findBinary: u.findBinary, run };
 
 // ---------- detection ----------
 
@@ -186,9 +186,13 @@ async function requestUsage(oauth) {
 }
 
 // The desktop app keeps its own sign-in, which other apps cannot read, so the
-// claude command has to be signed in for this login as well.
-const notSignedIn = (login) => `This login is not signed in for the claude command. Run "${login.isDefault ? 'claude' : `CLAUDE_CONFIG_DIR=${login.path} claude`}" in a terminal, sign in, then refresh`;
-const CANNOT_RENEW = 'The saved sign-in has expired. Run claude in a terminal once, then refresh';
+// claude command has to be signed in for each login as well. These errors make
+// the popover offer a button that does it.
+function signInNeeded(message, label) {
+  return Object.assign(new Error(message), { signInLabel: label });
+}
+const notSignedIn = () => signInNeeded('Not signed in for the claude command', 'Sign in');
+const cannotRenew = () => signInNeeded('The saved sign-in has expired', 'Sign in again');
 
 async function fetchLive(now, login) {
   const hit = liveCache.get(login.id);
@@ -200,22 +204,23 @@ async function fetchLive(now, login) {
     if (!isUsable(oauth, now)) {
       // Let Claude Code renew its own sign-in; Headroom never writes credentials.
       const status = await deps.authStatus(login);
-      if (status && !status.loggedIn) throw new Error(notSignedIn(login));
+      if (status && !status.loggedIn) throw notSignedIn();
       oauth = await deps.readCredential(login);
     }
-    if (!oauth || !oauth.accessToken) throw new Error(notSignedIn(login));
-    if (!isUsable(oauth, now)) throw new Error(CANNOT_RENEW);
+    if (!oauth || !oauth.accessToken) throw notSignedIn();
+    if (!isUsable(oauth, now)) throw cannotRenew();
     try {
       live.data = await deps.requestUsage(oauth);
     } catch (e) {
       if (e.status !== 401) throw e;
       await deps.authStatus(login);
       oauth = await deps.readCredential(login);
-      if (!isUsable(oauth, now)) throw new Error(CANNOT_RENEW);
+      if (!isUsable(oauth, now)) throw cannotRenew();
       live.data = await deps.requestUsage(oauth);
     }
   } catch (e) {
     live.error = e.name === 'TimeoutError' ? 'Anthropic did not answer in time' : e.message;
+    live.signInLabel = e.signInLabel || null;
   }
   return live;
 }
@@ -282,6 +287,7 @@ async function read({ settings, now, login }) {
       ].filter(Boolean);
     } else if (l.error) {
       out.note = `Couldn't read limits: ${l.error}.`;
+      if (l.signInLabel) out.action = { kind: 'sign-in', label: l.signInLabel };
     }
   } else {
     out.action = { kind: 'claude-live', label: 'Show limit percentages' };
@@ -297,6 +303,27 @@ async function read({ settings, now, login }) {
   return out;
 }
 
+// ---------- signing in ----------
+
+// Claude Code's own sign-in, pointed at one login. It opens the browser.
+function signInCommand(login, bin, baseEnv = process.env) {
+  const env = { ...baseEnv, PATH: path.dirname(bin) + path.delimiter + (baseEnv.PATH || '') };
+  delete env.CLAUDE_CONFIG_DIR;
+  if (!login.isDefault) env.CLAUDE_CONFIG_DIR = login.dir;
+  return { file: bin, args: ['auth', 'login'], env };
+}
+
+async function signIn(login) {
+  const bin = await deps.findBinary(['claude']);
+  if (!bin) return false;
+  const cmd = signInCommand(login, bin);
+  await deps.run(cmd.file, cmd.args, { env: cmd.env, cwd: os.tmpdir(), shell: u.WIN, timeout: 5 * 60 * 1000 });
+  resetLive(true);
+  return true;
+}
+
+const listLogins = (now) => deps.logins(now);
+
 // Forget cached limits (and, when asked, who the logins belong to).
 function resetLive(all) {
   liveCache.clear();
@@ -305,5 +332,5 @@ function resetLive(all) {
 
 module.exports = {
   id: 'claude', name: 'Claude Code', mark: 'Cl',
-  detect, read, resetLive, logins, lastActive, keychainName, loginName, deps,
+  detect, read, resetLive, logins: listLogins, lastActive, keychainName, loginName, deps, signIn, signInCommand,
 };

@@ -261,6 +261,13 @@ function wireIpc() {
     positionWindow();
     return publicState();
   });
+  // A button an agent offered, for example "Sign in" for one Claude login.
+  ipcMain.handle('act', async (_e, agentId, kind) => {
+    await providers.act(agentId, kind);
+    providers.resetLive(true);
+    await refresh();
+    return publicState();
+  });
   ipcMain.on('resize', (_e, height) => {
     if (!win) return;
     // Grow to fit the content; only a screen too short for it makes the popover scroll.

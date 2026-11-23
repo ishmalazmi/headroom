@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('headroom', {
   onState: (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
   refresh: () => ipcRenderer.invoke('refresh'),
   setSettings: (patch) => ipcRenderer.invoke('settings', patch),
+  act: (agentId, kind) => ipcRenderer.invoke('act', agentId, kind),
   completeOnboarding: (choice) => ipcRenderer.invoke('onboard', choice),
   resize: (height) => ipcRenderer.send('resize', height),
   hide: () => ipcRenderer.send('hide'),

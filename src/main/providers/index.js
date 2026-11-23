@@ -67,8 +67,18 @@ async function agentsFor(p, settings, now) {
   }));
 }
 
+// Carry out a button the popover offered, such as "Sign in" for one Claude login.
+async function act(agentId, kind, now = Date.now()) {
+  const [providerId, loginName] = String(agentId).split(':');
+  const p = PROVIDERS.find((x) => x.id === providerId);
+  if (!p || kind !== 'sign-in' || !p.signIn) return false;
+  const list = await p.logins(now);
+  const login = loginName ? list.find((l) => l.name === loginName) : list.find((l) => l.isDefault) || list[0];
+  return login ? p.signIn(login) : false;
+}
+
 async function collect(settings, now = Date.now()) {
   return (await Promise.all(PROVIDERS.map((p) => agentsFor(p, settings, now)))).flat();
 }
 
-module.exports = { collect, headline, resetLive: claude.resetLive };
+module.exports = { collect, headline, act, resetLive: claude.resetLive };

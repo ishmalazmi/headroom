@@ -70,3 +70,19 @@ test('collect lists every supported agent and reads none that are untracked', as
     assert.equal(typeof a.detected, 'boolean');
   }
 });
+
+test('act routes an action to the right provider and login', async () => {
+  const providers = require('../src/main/providers');
+  const claude = require('../src/main/providers/claude');
+  const work = { id: '/h/.claude-work', dir: '/h/.claude-work', isDefault: false, name: 'work', path: '~/.claude-work' };
+  const seen = [];
+  claude.deps.logins = async () => [{ id: '/h/.claude', dir: '/h/.claude', isDefault: true, name: 'Default', path: '~/.claude' }, work];
+  claude.deps.findBinary = async () => '/opt/bin/claude';
+  claude.deps.run = async (_file, args, opts) => { seen.push([args.join(' '), opts.env.CLAUDE_CONFIG_DIR]); return ''; };
+
+  assert.equal(await providers.act('claude:work', 'sign-in'), true);
+  assert.equal(await providers.act('claude', 'sign-in'), true);
+  assert.deepEqual(seen, [['auth login', '/h/.claude-work'], ['auth login', undefined]]);
+  assert.equal(await providers.act('codex', 'sign-in'), false, 'agents without that action decline');
+  assert.equal(await providers.act('nope', 'sign-in'), false);
+});
