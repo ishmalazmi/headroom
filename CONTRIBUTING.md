@@ -102,6 +102,10 @@ gh api repos/ishmalazmi/headroom/rulesets --method POST --input .github/rulesets
 
 GitHub only enforces rulesets on public repositories, or private ones on a paid plan.
 
+## Dependency updates
+
+Dependabot checks once a month and opens at most two pull requests: one for all npm updates and one for all GitHub Actions updates. Major versions of Electron and electron-builder are left out on purpose. Upgrade those by hand, run the app on the new version, and say in the pull request what you checked, because CI's unit tests do not start Electron.
+
 ## Releasing (maintainers)
 
 1. Update `version` in `package.json` and add a section to `CHANGELOG.md`.
