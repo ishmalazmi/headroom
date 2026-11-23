@@ -4,6 +4,18 @@ Notable changes to Headroom. Format based on [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+## 0.1.1 - 2026-11-24
+
+### Added
+
+- Multiple Claude logins, each tracked as its own row.
+- A Sign in button for a Claude login that is not signed in for the `claude` command.
+
+### Fixed
+
+- Claude limits no longer fail with a sign-in error while Claude is in use: an expired saved sign-in is renewed through Claude Code itself.
+- The popover is wider and no longer scrolls on a normal screen.
+
 ## 0.1.0 - 2026-11-24
 
 ### Added
@@ -13,6 +25,4 @@ Notable changes to Headroom. Format based on [Keep a Changelog](https://keepacha
 - Readers for Claude Code, Codex, Gemini CLI, Antigravity, Kimi and DeepSeek.
 - Pace line showing whether usage will outlast the current window.
 - Optional Claude limit percentages read from Anthropic.
-- Multiple Claude logins, each tracked as its own row.
-- A Sign in button for a Claude login that is not signed in for the `claude` command.
 - One silent notification at 90% of a limit.
