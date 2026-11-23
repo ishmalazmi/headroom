@@ -122,9 +122,12 @@ async function logins(now = Date.now()) {
 }
 
 async function defaultLogin(now) {
-  const list = await logins(now);
+  const list = await deps.logins(now);
   return list.find((l) => l.isDefault) || list[0];
 }
+
+// Everything that reaches outside this process, in one place so tests can replace it.
+const deps = { logins, authStatus, readCredential, requestUsage: (oauth) => requestUsage(oauth) };
 
 // ---------- detection ----------
 
@@ -193,23 +196,23 @@ async function fetchLive(now, login) {
   const live = { at: now, data: null, error: null };
   liveCache.set(login.id, live);
   try {
-    let oauth = await readCredential(login);
+    let oauth = await deps.readCredential(login);
     if (!isUsable(oauth, now)) {
       // Let Claude Code renew its own sign-in; Headroom never writes credentials.
-      const status = await authStatus(login);
+      const status = await deps.authStatus(login);
       if (status && !status.loggedIn) throw new Error(notSignedIn(login));
-      oauth = await readCredential(login);
+      oauth = await deps.readCredential(login);
     }
     if (!oauth || !oauth.accessToken) throw new Error(notSignedIn(login));
     if (!isUsable(oauth, now)) throw new Error(CANNOT_RENEW);
     try {
-      live.data = await requestUsage(oauth);
+      live.data = await deps.requestUsage(oauth);
     } catch (e) {
       if (e.status !== 401) throw e;
-      await authStatus(login);
-      oauth = await readCredential(login);
+      await deps.authStatus(login);
+      oauth = await deps.readCredential(login);
       if (!isUsable(oauth, now)) throw new Error(CANNOT_RENEW);
-      live.data = await requestUsage(oauth);
+      live.data = await deps.requestUsage(oauth);
     }
   } catch (e) {
     live.error = e.name === 'TimeoutError' ? 'Anthropic did not answer in time' : e.message;
@@ -302,5 +305,5 @@ function resetLive(all) {
 
 module.exports = {
   id: 'claude', name: 'Claude Code', mark: 'Cl',
-  detect, read, resetLive, logins, lastActive, keychainName, loginName,
+  detect, read, resetLive, logins, lastActive, keychainName, loginName, deps,
 };
