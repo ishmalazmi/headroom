@@ -1,0 +1,28 @@
+# Kept deliberately quiet: at most one open pull request per ecosystem,
+# everything in that ecosystem grouped into it, once a month.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      npm:
+        patterns: ["*"]
+    ignore:
+      # Major versions of the app framework and packager are upgraded by hand,
+      # after running the app on them. CI's unit tests do not start Electron.
+      - dependency-name: electron
+        update-types: ["version-update:semver-major"]
+      - dependency-name: electron-builder
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
