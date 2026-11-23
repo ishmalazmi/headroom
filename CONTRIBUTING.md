@@ -26,6 +26,7 @@ Useful while developing:
 | --- | --- |
 | `HEADROOM_DEMO=1` | Opens the popover with sample data, no real agents needed. `HEADROOM_DEMO=view=onboarding` shows the first-run screen, `view=settings` the settings, `open=codex` an expanded row. |
 | `HEADROOM_THEME=light` or `dark` | Forces a theme. |
+| `HEADROOM_SHOT_H=594` | With `--smoke=out.png`, captures at a fixed height so a row of README screenshots lines up. |
 | `HEADROOM_USER_DATA=/some/dir` | Uses a separate settings folder, so you can replay the first-run screen. |
 
 ## How the code is laid out
@@ -62,7 +63,7 @@ These decide most design questions. Please read them before changing behaviour o
 
 - **Keep it small.** One purpose per pull request.
 - **Add or update tests** for anything in `providers/`, `shared/` or `trayIcon.js`. Tests build fixture files in a temporary home folder; see `test/helpers.js` and any existing test for the pattern. Tests must not read the real home folder or use the network.
-- **UI changes** need a screenshot in light and dark. `HEADROOM_DEMO=1 npm start` gives you stable sample data; extend `src/renderer/demo.js` if your change needs a new state.
+- **UI changes** need a screenshot in light and dark. `npm start -- --smoke=out.png` renders the popover once, saves it and exits. `HEADROOM_DEMO=1 npm start` gives you stable sample data; extend `src/renderer/demo.js` if your change needs a new state.
 - **Match the surrounding style**: two-space indent, single quotes, semicolons. Comments explain why, not what.
 - **No new dependencies** without discussing it in an issue first. The app currently ships with none at runtime.
 - **Fixtures must be synthetic.** Never commit real session logs, tokens, account IDs or prompts.
