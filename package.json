@@ -1,0 +1,78 @@
+{
+  "name": "headroom",
+  "productName": "Headroom",
+  "version": "0.1.0",
+  "description": "See how much room is left on every coding agent you use, from the menu bar.",
+  "main": "src/main/main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.js\"",
+    "check": "node scripts/check.js",
+    "dist": "electron-builder --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "app.headroom.tray",
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    }
+  },
+  "author": "Headroom contributors",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "antigravity",
+    "usage",
+    "rate-limit",
+    "menu-bar",
+    "tray",
+    "electron"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ishmalazmi/headroom.git"
+  },
+  "homepage": "https://github.com/ishmalazmi/headroom#readme",
+  "bugs": {
+    "url": "https://github.com/ishmalazmi/headroom/issues"
+  }
+}

@@ -1,0 +1,37 @@
+name: Bug report
+description: Something is wrong, or a number does not match what the agent itself reports
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent involved
+      options: [Claude Code, Codex, Gemini CLI, Antigravity, Kimi, DeepSeek, Not agent-specific]
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and desktop
+      placeholder: macOS 15.2, Windows 11, Ubuntu 24.04 GNOME
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Headroom version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample log lines (optional)
+      description: For wrong numbers, a few lines from the agent's session log help most. Remove prompts, tokens and anything private first.
+      render: json

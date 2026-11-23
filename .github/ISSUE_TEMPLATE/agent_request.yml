@@ -1,0 +1,28 @@
+name: New agent
+description: Ask for an agent to be supported, or offer to add one
+labels: [agent]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Agent
+      description: Name and a link to it.
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Where it keeps its data
+      description: Config folder on each OS you know, and which files hold usage, tokens or limits.
+  - type: textarea
+    id: limits
+    attributes:
+      label: How its limits work
+      description: Rolling window, daily quota, credits, pay as you go?
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Can you help?
+      options:
+        - label: I can share sanitised sample files
+        - label: I would like to write the provider myself
