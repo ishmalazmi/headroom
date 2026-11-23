@@ -81,6 +81,25 @@ By contributing you agree that your work is released under the project's [MIT li
 
 Please do not open a public issue for anything involving credentials or private data. See [SECURITY.md](SECURITY.md).
 
+## How changes reach `main`
+
+Nobody pushes to `main` directly, maintainers included. Every change goes through a pull request:
+
+1. Open a pull request from a branch or a fork.
+2. CI runs `npm run check` and `npm test` on macOS, Windows and Linux. All three must pass.
+3. A code owner (see `.github/CODEOWNERS`) is asked to review automatically. One approval is required, a new push dismisses earlier approvals, and review threads must be resolved.
+4. A maintainer merges. Force-pushing to `main` and deleting it are blocked.
+
+Repository admins may merge their own pull request without a second approval, because a project with one maintainer would otherwise be stuck. They still cannot push to `main` without a pull request.
+
+The rules live in `.github/rulesets/main.json`. To apply or update them (admins only):
+
+```bash
+gh api repos/ishmalazmi/headroom/rulesets --method POST --input .github/rulesets/main.json
+```
+
+GitHub only enforces rulesets on public repositories, or private ones on a paid plan.
+
 ## Releasing (maintainers)
 
 1. Update `version` in `package.json` and add a section to `CHANGELOG.md`.
