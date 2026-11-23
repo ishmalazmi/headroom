@@ -15,11 +15,12 @@
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-17212B" alt="macOS, Windows and Linux">
 </p>
 
-<p align="center">
-  <img src="docs/popover-dark.png" alt="Headroom in dark mode: Claude Code at 78% of its 5-hour window with a warning that it will run out before the reset, and Codex, Gemini CLI and Antigravity listed below" width="380">
-  &nbsp;
-  <img src="docs/popover-light.png" alt="Headroom in light mode with the Codex row expanded to show its 5-hour and weekly limits" width="380">
-</p>
+<table align="center">
+  <tr>
+    <td><img src="docs/popover-dark.png" alt="Headroom in dark mode: Claude Code at 78% of its 5-hour window with a warning that it will run out before the reset, and Codex, Gemini CLI and Antigravity listed below" width="400"></td>
+    <td><img src="docs/popover-light.png" alt="The same view in light mode" width="400"></td>
+  </tr>
+</table>
 
 ## Why
 
@@ -38,18 +39,14 @@ Claude Code, Codex, Gemini CLI and the rest each have their own limits, their ow
 
 <table>
   <tr>
-    <td width="33%" valign="top">
-      <img src="docs/first-run.png" alt="First-run screen listing four agents found on this Mac, with a switch to track each and a choice of which goes in the menu bar">
-      <p><b>First run.</b> Pick what to track and which agent stays in the bar. That is the whole setup.</p>
-    </td>
-    <td width="33%" valign="top">
-      <img src="docs/locked.png" alt="Antigravity pinned and showing Limit reached, back in 3h 12m, with a banner offering to track DeepSeek">
-      <p><b>Locked out.</b> When an agent hits its quota, Headroom shows when it comes back. A newly installed agent appears as a banner, never a pop-up.</p>
-    </td>
-    <td width="33%" valign="top">
-      <img src="docs/settings.png" alt="Settings: switches for each agent, percent used or left, the 90% notification, open at login and the Claude limits option">
-      <p><b>Settings.</b> Choose agents, show percent used or left, and decide whether Claude limits are fetched.</p>
-    </td>
+    <td width="33%"><img src="docs/first-run.png" alt="First-run screen listing four agents found on this Mac, with a switch to track each and a choice of which goes in the menu bar"></td>
+    <td width="33%"><img src="docs/expanded.png" alt="The Codex row expanded to show its 5-hour and weekly limits, tokens and when the numbers were last updated"></td>
+    <td width="33%"><img src="docs/settings.png" alt="Settings: a switch for each agent, percent used or left, the 90% notification and open at login"></td>
+  </tr>
+  <tr>
+    <td valign="top"><b>First run.</b> Pick what to track and which agent stays in the bar. That is the whole setup.</td>
+    <td valign="top"><b>Any agent in detail.</b> Click a row to see its limits, reset times and tokens. Click its pin to move it to the bar.</td>
+    <td valign="top"><b>Settings.</b> Choose agents, show percent used or left, and keep or silence the single 90% notification.</td>
   </tr>
 </table>
 

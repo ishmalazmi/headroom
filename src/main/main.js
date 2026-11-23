@@ -280,7 +280,9 @@ async function smoke() {
   await new Promise((r) => setTimeout(r, 1200));
   // Screenshots show the whole view, even where the live popover would scroll.
   const h = await win.webContents.executeJavaScript("document.body.style.maxHeight = 'none'; Math.ceil(document.getElementById('app').getBoundingClientRect().height)");
-  win.setSize(WIDTH, Math.max(120, Math.min(h, 1000)));
+  if (process.env.HEADROOM_SHOT_CSS) await win.webContents.insertCSS(process.env.HEADROOM_SHOT_CSS);
+  // HEADROOM_SHOT_H fixes the height so a row of screenshots lines up.
+  win.setSize(WIDTH, Number(process.env.HEADROOM_SHOT_H) || Math.max(120, Math.min(h, 1000)));
   await new Promise((r) => setTimeout(r, 400));
   const img = await win.webContents.capturePage();
   fs.writeFileSync(SMOKE, img.toPNG());
